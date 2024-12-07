@@ -4,20 +4,21 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Console = Colorful.Console;
 
-string DefaultConfigPathfilename()
+string? DefaultConfigPathfilename()
 {
-    var folderPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "cf");
+    var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+    if (string.IsNullOrWhiteSpace(appData)) return null;
+
+    var folderPath = Path.Combine(appData, "cf");
 
     if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
 
     return Path.Combine(folderPath, "default.json");
 }
 
-if (!File.Exists(DefaultConfigPathfilename()))
+if (DefaultConfigPathfilename() is not null && !File.Exists(DefaultConfigPathfilename()))
 {
-    File.WriteAllText(DefaultConfigPathfilename(), JsonSerializer.Serialize(
+    File.WriteAllText(DefaultConfigPathfilename()!, JsonSerializer.Serialize(
         new List<ColorizerItem>
         {
             new ColorizerItem{
@@ -49,9 +50,10 @@ void PrintHelp()
     Console.WriteLine($"{AppDomain.CurrentDomain.FriendlyName} [--test=HEXCOLOR] <config-file>");
     Console.WriteLine();
     Console.WriteLine("Options:");
-    Console.WriteLine("    --test=HEXCOLOR     prints out a sample with given hex color.");
+    Console.WriteLine("    --test=HEXCOLOR     prints out a sample with given hex color.");    
     Console.WriteLine();
-    Console.WriteLine($"Default config file is {DefaultConfigPathfilename()}");
+    if (DefaultConfigPathfilename() is not null)
+        Console.WriteLine($"Default config file is {DefaultConfigPathfilename()}");
 }
 
 {
@@ -79,7 +81,7 @@ string? configPathfilename = null;
 
 if (args.Length == 0)
 {
-    if (File.Exists(DefaultConfigPathfilename()))
+    if (DefaultConfigPathfilename() is not null && File.Exists(DefaultConfigPathfilename()))
         configPathfilename = DefaultConfigPathfilename();
 
     else
@@ -93,7 +95,7 @@ else
 
 if (configPathfilename is null) configPathfilename = DefaultConfigPathfilename();
 
-if (!File.Exists(configPathfilename))
+if (configPathfilename is null || !File.Exists(configPathfilename))
 {
     Console.WriteLine($"{configPathfilename ?? DefaultConfigPathfilename()} config file not found.");
     PrintHelp();
