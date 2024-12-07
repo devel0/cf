@@ -41,10 +41,11 @@ to some in path
 ## synopsis
 
 ```sh
-cf [--test=HEXCOLOR] <config-file>
+cf [--test=FG[,BG]] <config-file>
 
 Options:
-    --test=HEXCOLOR     prints out a sample with given hex color.
+    --test=[FG[,BG]]     prints out a sample with given hex color.
+    --demo               print color demo
 
 Default config file is /home/devel0/.config/cf/default.json
 ```
