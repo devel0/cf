@@ -30,7 +30,7 @@ dotnet publish
 
 then copy produced build single file
 
-`./bin/Release/net8.0/linux-x64/publish/cf`
+`./src/bin/Release/net8.0/linux-x64/publish/cf`
 
 to some in path
 
