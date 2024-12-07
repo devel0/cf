@@ -1,5 +1,7 @@
 # colorful
 
+![](doc/demo.png)
+
 ## Introduction
 
 Purpose of this app is to allow an easy way to colorize logs,

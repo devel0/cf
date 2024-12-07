@@ -2,7 +2,31 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Console = Colorful.Console;
+
+var escape = (char)27;
+
+void SetForegroundColor(Color color) => SetColor(fg: color, bg: null);
+void SetBackgroundColor(Color color) => SetColor(fg: null, bg: color);
+void ResetColors() => SetColor(fg: null, bg: null);
+
+void SetColor(Color? fg, Color? bg)
+{
+    var str = "";
+
+    if (!fg.HasValue && !bg.HasValue)
+        str = $"{escape}[0m";
+
+    else if (fg.HasValue && !bg.HasValue)
+        str = $"{escape}[38;2;{fg.Value.R};{fg.Value.G};{fg.Value.B}m";
+
+    else if (!fg.HasValue && bg.HasValue)
+        str = $"{escape}[48;2;{bg.Value.R};{bg.Value.G};{bg.Value.B}m";
+
+    else if (fg.HasValue && bg.HasValue)
+        str = $"{escape}[38;2;{fg.Value.R};{fg.Value.G};{fg.Value.B}m{escape}[48;2;{bg.Value.R};{bg.Value.G};{bg.Value.B}m";
+
+    Console.Write(str);
+}
 
 string? DefaultConfigPathfilename()
 {
@@ -47,13 +71,37 @@ if (DefaultConfigPathfilename() is not null && !File.Exists(DefaultConfigPathfil
 
 void PrintHelp()
 {
-    Console.WriteLine($"{AppDomain.CurrentDomain.FriendlyName} [--test=HEXCOLOR] <config-file>");
+    Console.WriteLine($"{AppDomain.CurrentDomain.FriendlyName} [--test=FG[,BG]] <config-file>");
     Console.WriteLine();
     Console.WriteLine("Options:");
-    Console.WriteLine("    --test=HEXCOLOR     prints out a sample with given hex color.");    
+    Console.WriteLine("    --test=[FG[,BG]]     prints out a sample with given hex color.");
+    Console.WriteLine("    --demo               print color demo");
     Console.WriteLine();
     if (DefaultConfigPathfilename() is not null)
         Console.WriteLine($"Default config file is {DefaultConfigPathfilename()}");
+}
+
+if (args.Any(r => r == "--demo"))
+{
+
+    for (var h = 0; h < 360; h += 1)
+    {
+        var color = ColorHelper.ColorConverter.HslToRgb(new ColorHelper.HSL(
+            h, // hue deg
+            100, // % saturation
+            50 // % luminosity                    
+            ));
+
+        SetForegroundColor(Color.FromArgb(color.R, color.G, color.B));
+
+        Console.Write('D');
+    }
+
+    Console.WriteLine();
+
+    ResetColors();
+
+    Environment.Exit(0);
 }
 
 {
@@ -63,9 +111,25 @@ void PrintHelp()
         var q = args.First(w => w.StartsWith(T));
         q = q.Substring(T.Length, q.Length - T.Length);
 
-        var col = ParseColor(q);
-        if (col.HasValue)
-            Console.WriteLine("SAMPLE", col.Value);
+        var ss = q.Split(',');
+
+        var fg = ss[0];
+        var bg = "";
+
+        if (ss.Length > 1)
+            bg = ss[1];
+
+        var fgColor = ParseColor(fg);
+        Color? bgColor = null;
+
+        if (!string.IsNullOrWhiteSpace(bg))
+            bgColor = ParseColor(bg);
+
+        SetColor(fgColor, bgColor);
+
+        Console.WriteLine("SAMPLE");
+
+        ResetColors();        
 
         Environment.Exit(10);
     }
@@ -184,10 +248,12 @@ while (!cts.IsCancellationRequested)
             var background = ParseColor(qFirstFullRow.ruleRgx.rule.Background);
 
             if (background.HasValue)
-                Console.BackgroundColor = background.Value;
+                SetBackgroundColor(background.Value);
 
             if (foreground.HasValue)
-                Console.Write(line, foreground.Value);
+                SetForegroundColor(foreground.Value);
+
+            Console.Write(line);
         }
 
         else // there is no fullrow rule matching, but some non-rullrow matching rules, print interleaved
@@ -231,22 +297,22 @@ while (!cts.IsCancellationRequested)
             {
                 if (r.eidx > idx)
                 {
-                    Console.ResetColor();
+                    ResetColors();
                     Console.Write(line.Substring(idx, r.eidx - idx));
                 }
+
+                var token = line.Substring(r.eidx, r.elen);
 
                 var foreground = ParseColor(r.ruleRgx.rule.Foreground);
                 var background = ParseColor(r.ruleRgx.rule.Background);
 
                 if (background.HasValue)
-                    Console.BackgroundColor = background.Value;
+                    SetBackgroundColor(background.Value);
 
-                var token = line.Substring(r.eidx, r.elen);
                 if (foreground.HasValue)
-                    Console.Write(token, foreground.Value);
+                    SetForegroundColor(foreground.Value);
 
-                else
-                    Console.Write(token);
+                Console.Write(token);
 
                 idx = r.eidx + r.elen;
             }
@@ -260,9 +326,9 @@ while (!cts.IsCancellationRequested)
 
     else // no rules match, print fullrow without colors
     {
-        Console.ResetColor();
+        ResetColors();
         Console.WriteLine(line);
     }
 }
 
-Console.ResetColor();
+ResetColors();
