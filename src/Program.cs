@@ -254,6 +254,8 @@ while (!cts.IsCancellationRequested)
                 SetForegroundColor(foreground.Value);
 
             Console.Write(line);
+
+            ResetColors();
         }
 
         else // there is no fullrow rule matching, but some non-rullrow matching rules, print interleaved
@@ -313,6 +315,8 @@ while (!cts.IsCancellationRequested)
                     SetForegroundColor(foreground.Value);
 
                 Console.Write(token);
+
+                ResetColors();
 
                 idx = r.eidx + r.elen;
             }
