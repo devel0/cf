@@ -1,5 +1,6 @@
 ﻿using System.Drawing;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -71,11 +72,12 @@ if (DefaultConfigPathfilename() is not null && !File.Exists(DefaultConfigPathfil
 
 void PrintHelp()
 {
-    Console.WriteLine($"{AppDomain.CurrentDomain.FriendlyName} [--test=FG[,BG]] <config-file>");
+    Console.WriteLine($"{AppDomain.CurrentDomain.FriendlyName} [--test=FG[,BG]] [--file=INPUTFILE] <config-file>");
     Console.WriteLine();
     Console.WriteLine("Options:");
     Console.WriteLine("    --test=[FG[,BG]]     prints out a sample with given hex color.");
     Console.WriteLine("    --demo               print color demo");
+    Console.WriteLine("    --file=INPUTFILE     read from given input file instead of stdin");
     Console.WriteLine();
     if (DefaultConfigPathfilename() is not null)
         Console.WriteLine($"Default config file is {DefaultConfigPathfilename()}");
@@ -104,6 +106,11 @@ if (args.Any(r => r == "--demo"))
     Environment.Exit(0);
 }
 
+string? inputPathfilename = null;
+
+if (args.Any(r => r.StartsWith("--file=")))
+    inputPathfilename = args.First(w => w.StartsWith("--file=")).Substring("--file=".Length);
+
 {
     var T = "--test=";
     if (args.Any(r => r.StartsWith(T)))
@@ -129,7 +136,7 @@ if (args.Any(r => r == "--demo"))
 
         Console.WriteLine("SAMPLE");
 
-        ResetColors();        
+        ResetColors();
 
         Environment.Exit(10);
     }
@@ -155,7 +162,7 @@ if (args.Length == 0)
     }
 }
 else
-    configPathfilename = args.Where(r => !r.StartsWith("---test=") && !r.StartsWith("--help")).FirstOrDefault();
+    configPathfilename = args.Where(r => !r.StartsWith("--")).FirstOrDefault();
 
 if (configPathfilename is null) configPathfilename = DefaultConfigPathfilename();
 
@@ -173,10 +180,22 @@ if (configRules is null)
     Environment.Exit(3);
 }
 
-using var stream = Console.OpenStandardInput();
-using var sr = new StreamReader(stream);
+Stream? stream = null;
 
-// using var sr = new StreamReader("/home/devel0/test");
+if (inputPathfilename is not null)
+{
+    if (!File.Exists(inputPathfilename))
+    {
+        Console.WriteLine($"Input file {inputPathfilename} not exists");
+        Environment.Exit(4);
+    }
+    stream = File.Open(inputPathfilename, FileMode.Open, FileAccess.Read);
+}
+
+else
+    stream = Console.OpenStandardInput();
+
+using var sr = new StreamReader(stream);
 
 var cts = new CancellationTokenSource();
 
@@ -215,10 +234,10 @@ Color? ParseColor(string hexColor)
 }
 
 var configRulesWithRgx = configRules
-    .Select(rule => new
+    .Select(rule => new RuleRgx
     {
-        rule,
-        rgx = new Regex(rule.Regex, rule.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None)
+        Rule = rule,
+        Rgx = new Regex(rule.Regex, rule.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None)
     })
     .ToList();
 
@@ -229,101 +248,115 @@ while (!cts.IsCancellationRequested)
     if (line is null) break;
 
     var qMatches = configRulesWithRgx
-        .Select(ruleRgx => new
+        .Select(ruleRgx => new RuleRgxMatches
         {
-            ruleRgx,
-            matches = ruleRgx.rgx.Matches(line)
-                .Where(r => ruleRgx.rule.GroupMatch == false || r.Groups.Count > 1)
+            RuleRgx = ruleRgx,
+            Matches = ruleRgx.Rgx.Matches(line)
+                .Where(r => ruleRgx.Rule.GroupMatch == false || r.Groups.Count > 1)
                 .ToList()
         })
         .ToList();
 
-    if (qMatches.Any(r => r.matches.Count > 0)) // some rules matches
+    if (qMatches.Any(r => r.Matches.Count > 0)) // some rules matches
     {
-        var qFirstFullRow = qMatches.FirstOrDefault(r => r.ruleRgx.rule.FullRow && r.matches.Count > 0);
-
-        if (qFirstFullRow is not null) // there is at least one fullrow rule matching, take the first one
-        {
-            var foreground = ParseColor(qFirstFullRow.ruleRgx.rule.Foreground);
-            var background = ParseColor(qFirstFullRow.ruleRgx.rule.Background);
-
-            if (background.HasValue)
-                SetBackgroundColor(background.Value);
-
-            if (foreground.HasValue)
-                SetForegroundColor(foreground.Value);
-
-            Console.Write(line);
-
-            ResetColors();
-        }
-
-        else // there is no fullrow rule matching, but some non-rullrow matching rules, print interleaved
-        {
-            // sort matches by row char index
-            var qSorted = qMatches
-                .SelectMany(w => w.matches.Select(m => new
-                {
-                    match = m,
-                    w.ruleRgx,
-                    eidx = w.ruleRgx.rule.GroupMatch == false ? m.Index : m.Groups[1].Index,
-                    elen = w.ruleRgx.rule.GroupMatch == false ? m.Length : m.Groups[1].Length
-                }))
-                .OrderBy(w => w.eidx)
-                .ToList();
-
-            var idx = 0;
-            var toRemove = new List<int>();
-            for (var si = 0; si < qSorted.Count; ++si)
+        var q = qMatches
+            .SelectMany((w, origIdx) => w.Matches.Select(m => new BlockNfo
             {
-                var s = qSorted[si];
+                OrigIdx = origIdx,
+                RuleRgx = w.RuleRgx,
+                Match = m,
 
-                if (s.eidx < idx)
-                    toRemove.Add(si);
+                MatchIdx = w.RuleRgx.Rule.FullRow ?
+                    0 :
+                    w.RuleRgx.Rule.GroupMatch == false ? m.Index : m.Groups[1].Index,
 
-                idx = s.eidx + s.elen;
+                MatchLen = w.RuleRgx.Rule.FullRow ?
+                    line.Length :
+                    w.RuleRgx.Rule.GroupMatch == false ? m.Length : m.Groups[1].Length
+            }))
+            .Where(r => r.Match.Length > 0)
+            .ToList();
+
+        var processed = new List<BlockExtNfo>();
+        var seq = new List<BlockExtNfo>();
+
+        var ary = new CharColor[line.Length];
+
+        var nullCharColor = new CharColor();
+
+        for (var i = 0; i < line.Length; ++i) ary[i] = nullCharColor;
+
+        foreach (var x in q)
+        {
+            var charColor = new CharColor
+            {
+                Background = x.RuleRgx.Rule.Background?.Length > 0 ? x.RuleRgx.Rule.Background : null,
+                Foreground = x.RuleRgx.Rule.Foreground?.Length > 0 ? x.RuleRgx.Rule.Foreground : null,
+            };
+
+            var from = 0;
+            var to = line.Length - 1;
+
+            if (!x.RuleRgx.Rule.FullRow)
+            {
+                from = x.MatchIdx;
+                to = x.MatchEndIdx;
             }
 
-            if (toRemove.Count > 0) // remove overlapped matches
-                qSorted = qSorted
-                    .Select((s, i) => new { s, i })
-                    .Where(t => !toRemove.Contains(t.i))
-                    .Select(x => x.s)
-                    .ToList();
+            var bufCharColor = new List<CharColor>();
 
-            // print out
-
-            idx = 0;
-
-            foreach (var r in qSorted)
+            for (var j = from; j <= to; ++j)
             {
-                if (r.eidx > idx)
+                if (ary[j] == nullCharColor)
                 {
-                    ResetColors();
-                    Console.Write(line.Substring(idx, r.eidx - idx));
+                    ary[j] = charColor;
                 }
+                else
+                {
+                    var fg = charColor.Foreground ?? ary[j].Foreground;
+                    var bg = charColor.Background ?? ary[j].Background;
 
-                var token = line.Substring(r.eidx, r.elen);
+                    var qBuf = bufCharColor.FirstOrDefault(r => r.Foreground == fg && r.Background == bg);
+                    if (qBuf is null)
+                    {
+                        qBuf = new CharColor { Foreground = fg, Background = bg };
+                        bufCharColor.Add(qBuf);
+                    }
 
-                var foreground = ParseColor(r.ruleRgx.rule.Foreground);
-                var background = ParseColor(r.ruleRgx.rule.Background);
+                    ary[j] = qBuf;
+                }
+            }
+        }
 
-                if (background.HasValue)
-                    SetBackgroundColor(background.Value);
+        CharColor? prev = null;
 
-                if (foreground.HasValue)
-                    SetForegroundColor(foreground.Value);
+        var sb = new StringBuilder();
 
-                Console.Write(token);
+        for (var i = 0; i < line.Length; ++i)
+        {
+            var thisCC = ary[i];
+
+            if (prev is null || prev.Foreground != thisCC.Foreground || prev.Background != thisCC.Background)
+            {
+                Console.Write(sb.ToString());
+
+                sb.Clear();
 
                 ResetColors();
 
-                idx = r.eidx + r.elen;
+                if (thisCC.Background is not null)
+                    SetBackgroundColor(ParseColor(thisCC.Background)!.Value);
+
+                if (thisCC.Foreground is not null)
+                    SetForegroundColor(ParseColor(thisCC.Foreground)!.Value);
             }
 
-            if (idx < line.Length)
-                Console.Write(line.Substring(idx, line.Length - idx));
+            sb.Append(line[i]);
+
+            prev = thisCC;
         }
+
+        if (sb.Length > 0) Console.Write(sb.ToString());
 
         Console.WriteLine();
     }
