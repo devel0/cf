@@ -50,7 +50,7 @@ if (DefaultConfigPathfilename() is not null && !File.Exists(DefaultConfigPathfil
                 Note= "pid",
                 Foreground= "317444",
                 Background= "",
-                Regex = "[a-z0-9]+\\[(\\d*)\\]",
+                Regex = [ "[a-z0-9]+\\[(\\d*)\\]" ],
                 GroupMatch = true
             },
 
@@ -58,7 +58,7 @@ if (DefaultConfigPathfilename() is not null && !File.Exists(DefaultConfigPathfil
                 Note= "procname",
                 Foreground= "d8e21d",
                 Background= "",
-                Regex = "[a-z0-9]+\\s([^\\s]*)\\[\\d*\\]",
+                Regex = [ "[a-z0-9]+\\s([^\\s]*)\\[\\d*\\]" ],
                 GroupMatch = true
             },
         },
@@ -234,11 +234,12 @@ Color? ParseColor(string hexColor)
 }
 
 var configRulesWithRgx = configRules
-    .Select(rule => new RuleRgx
+    .SelectMany(rule => rule.Regex.Select(w => new RuleRgx
     {
         Rule = rule,
-        Rgx = new Regex(rule.Regex, rule.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None)
+        Rgx = new Regex(w, rule.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None)
     })
+    )
     .ToList();
 
 while (!cts.IsCancellationRequested)

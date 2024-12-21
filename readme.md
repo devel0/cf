@@ -59,7 +59,7 @@ Default config file is /home/devel0/.config/cf/default.json
     "Note": "pid",
     "Foreground": "317444",
     "Background": "",
-    "Regex": "[a-z0-9]+\\[(\\d*)\\]",
+    "Regex": [ "[a-z0-9]+\\[(\\d*)\\]" ],
     "GroupMatch": true,
     "IgnoreCase": false,
     "FullRow": false
@@ -68,7 +68,7 @@ Default config file is /home/devel0/.config/cf/default.json
     "Note": "procname",
     "Foreground": "d8e21d",
     "Background": "",
-    "Regex": "[a-z0-9]+\\s([^\\s]*)\\[\\d*\\]",
+    "Regex": [ "[a-z0-9]+\\s([^\\s]*)\\[\\d*\\]" ],
     "GroupMatch": true,
     "IgnoreCase": false,
     "FullRow": false
@@ -85,7 +85,7 @@ result example
 ![](./doc/sample2.png)
 
 - `fullrow` matches all the row setting black background
-- `hours` matches dd:dd:dd setting foreground and background
+- `hours and service` matches dd:dd:dd or xxx.service setting foreground and background
 - `pattern1` matches `deactivated successfully` case-insensitive setting foreground
 - `pattern2` matches `success` case-insensitive settings foreground
 - `pid` matches the number inside square bracket with a regex containing a group thus using GroupMatch mode
@@ -96,32 +96,32 @@ result example
     "Note": "fullrow",
     "Foreground": "",
     "Background": "#000000",
-    "Regex": ".*",
+    "Regex": [ ".*" ],
     "FullRow": true
   },
   {
-    "Note": "hours",
+    "Note": "hours and service",
     "Foreground": "#42ff81",
     "Background": "#06160b",
-    "Regex": "\\d\\d:\\d\\d:\\d\\d"
+    "Regex": [ "\\d\\d:\\d\\d:\\d\\d", "[^\\s]*\\.service" ]
   },
   {
     "Note": "pattern1",
     "Foreground": "#bc4bc6",
-    "Regex": "deactivated successfully",
+    "Regex": [ "deactivated successfully" ],
     "IgnoreCase": true
   },
   {
     "Note": "pattern2",
     "Foreground": "#f260ff",
-    "Regex": "success",
+    "Regex": [ "success" ],
     "IgnoreCase": true
   },
   {
     "Note": "pid",
     "Foreground": "#202020",
     "Background": "#ffff00",
-    "Regex": "\\[(\\d+)]",
+    "Regex": [ "\\[(\\d+)]" ],
     "GroupMatch": true,
     "IgnoreCase": true
   }
